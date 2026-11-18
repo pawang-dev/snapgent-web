@@ -1,0 +1,16 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block files over 1 MB
+        run: |
+          big=$(find . -path ./.git -prune -o -type f -size +1M -print)
+          if [ -n "$big" ]; then echo "Files over 1 MB:"; echo "$big"; exit 1; fi
+      - name: Validate manifest
+        run: '[ ! -f extension/manifest.json ] || python3 -m json.tool extension/manifest.json > /dev/null'
