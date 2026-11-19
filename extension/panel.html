@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snapgent panel</title>
+  <style>
+    :root { color-scheme: light dark; --line: color-mix(in srgb, currentColor 22%, transparent); --ok: #1a7f37; --warn: #9a6700; }
+    body { font: 15px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.25rem; margin: 0 0 1rem; }
+    section { border: 1px solid var(--line); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    h2 { font-size: 1rem; margin: 0 0 .5rem; }
+    button, select, textarea { font: inherit; }
+    button { padding: .4rem .8rem; cursor: pointer; }
+    button[hidden] { display: none; }
+    button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+    textarea { width: 100%; box-sizing: border-box; min-height: 6rem; font-family: ui-monospace, monospace; }
+    pre { overflow: auto; max-height: 20rem; padding: .75rem; border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; }
+    #status[data-state="ready"] { color: var(--ok); }
+    #status[data-state="needs-permission"] { color: var(--warn); }
+    .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>Snapgent panel</h1>
+
+  <section>
+    <h2>Folder</h2>
+    <p id="status" data-state="none" role="status">No folder selected.</p>
+    <div class="row">
+      <button id="choose" type="button">Choose folder</button>
+      <button id="reconnect" type="button" hidden>Allow access again</button>
+    </div>
+    <p>Keep this tab open. Chat pages reach the folder through it.</p>
+  </section>
+
+  <section>
+    <h2>Run a tool by hand</h2>
+    <div class="row">
+      <label for="tool">Tool</label>
+      <select id="tool"></select>
+      <button id="run" type="button">Run</button>
+    </div>
+    <label for="args">Arguments (JSON)</label>
+    <textarea id="args" spellcheck="false">{ "path": "" }</textarea>
+    <pre id="output" aria-live="polite">Results appear here.</pre>
+  </section>
+
+  <script type="module" src="panel.js"></script>
+</body>
+</html>
