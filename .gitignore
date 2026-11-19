@@ -6,3 +6,4 @@ dist/
 *.zip
 config.json
 .DS_Store
+*.bundle
