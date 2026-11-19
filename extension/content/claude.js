@@ -70,10 +70,14 @@
   }
 
   // ---- Talking to the panel tab ----
+  const RELOADED = "The extension was reloaded or updated. Refresh this page, then try again.";
   async function callPanel(message) {
+    // After the extension reloads, this page keeps running the old script with a dead connection.
+    if (!chrome.runtime?.id) return { ok: false, error: RELOADED };
     try {
       return (await chrome.runtime.sendMessage(message)) ?? { ok: false, error: "The Snapgent panel did not answer." };
-    } catch {
+    } catch (error) {
+      if (!chrome.runtime?.id || /context invalidated/i.test(String(error?.message))) return { ok: false, error: RELOADED };
       return { ok: false, error: "The Snapgent panel is not open. Open its tab, choose a folder, then try again." };
     }
   }
