@@ -36,6 +36,10 @@ async function run(name, args) {
 
 // Chat pages (content scripts, added later) send { type: "snapgent:tool", name, args }.
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "snapgent:list") {
+    sendResponse({ ok: true, result: TOOL_SCHEMAS });
+    return false;
+  }
   if (message?.type !== "snapgent:tool") return false;
   run(message.name, message.args).then(sendResponse);
   return true;
