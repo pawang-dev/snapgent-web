@@ -3,11 +3,18 @@
 import { splitPath, touchesGit } from "./path.js";
 
 export const MAX_FILE_BYTES = 200_000;
+const SKIP_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".venv", "venv", "__pycache__"]);
+export const SEARCH_LIMITS = { files: 2000, results: 50, maxResults: 200, lineChars: 200 };
 
 const STR = { type: "string" };
 export const TOOL_SCHEMAS = [
   { name: "list_dir", description: "List files and folders in the selected folder.", inputSchema: { type: "object", properties: { path: STR } } },
   { name: "read_file", description: "Read a UTF-8 text file.", inputSchema: { type: "object", properties: { path: STR }, required: ["path"] } },
+  {
+    name: "search_text",
+    description: "Search file contents for text (plain text, not regex) under a folder. Skips node_modules, .git and build folders.",
+    inputSchema: { type: "object", properties: { query: STR, path: STR, case_sensitive: { type: "boolean" }, max_results: { type: "integer" } }, required: ["query"] },
+  },
   { name: "write_file", description: "Write or replace a UTF-8 text file. Parent folders are created.", inputSchema: { type: "object", properties: { path: STR, content: STR }, required: ["path", "content"] } },
   {
     name: "edit_file",
@@ -55,6 +62,18 @@ async function readText(root, path) {
   }
 }
 
+async function readSearchable(handle) {
+  try {
+    const file = await handle.getFile();
+    if (file.size === 0 || file.size > MAX_FILE_BYTES) return null;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes.subarray(0, 1024).includes(0)) return null;
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
 async function writeText(root, path, content) {
   const parts = fileParts(path);
   if (touchesGit(parts)) throw new Error("Refusing to write inside .git.");
@@ -86,6 +105,50 @@ export function createTools(root) {
 
     async read_file({ path } = {}) {
       return { path, content: await readText(root, path) };
+    },
+
+    async search_text({ query, path = "", case_sensitive = false, max_results = SEARCH_LIMITS.results } = {}) {
+      if (typeof query !== "string" || query === "") throw new Error("query must be a non-empty string.");
+      const limit = Math.min(Math.max(Math.trunc(Number(max_results)) || SEARCH_LIMITS.results, 1), SEARCH_LIMITS.maxResults);
+      const parts = splitPath(path);
+      let start;
+      try {
+        start = await getDir(root, parts);
+      } catch (error) {
+        throw friendly(error, path);
+      }
+      const needle = case_sensitive ? query : query.toLowerCase();
+      const matches = [];
+      let scanned = 0;
+      let truncated = false;
+      const stack = [{ dir: start, prefix: parts }];
+      search: while (stack.length > 0) {
+        const { dir, prefix } = stack.pop();
+        const entries = [];
+        for await (const entry of dir.entries()) entries.push(entry);
+        entries.sort((a, b) => a[0].localeCompare(b[0]));
+        const subdirs = [];
+        for (const [name, handle] of entries) {
+          if (handle.kind === "directory") {
+            if (!SKIP_DIRS.has(name)) subdirs.push({ dir: handle, prefix: [...prefix, name] });
+            continue;
+          }
+          if (scanned >= SEARCH_LIMITS.files) { truncated = true; break search; }
+          scanned++;
+          const text = await readSearchable(handle);
+          if (text === null) continue;
+          const lines = text.split("\n");
+          for (let i = 0; i < lines.length; i++) {
+            if (!(case_sensitive ? lines[i] : lines[i].toLowerCase()).includes(needle)) continue;
+            if (matches.length >= limit) { truncated = true; break search; }
+            const line = lines[i].trim();
+            const clipped = line.length > SEARCH_LIMITS.lineChars ? `${line.slice(0, SEARCH_LIMITS.lineChars)}…` : line;
+            matches.push({ path: [...prefix, name].join("/"), line: i + 1, text: clipped });
+          }
+        }
+        stack.push(...subdirs.reverse());
+      }
+      return { query, path: parts.join("/") || ".", files_scanned: scanned, truncated, matches };
     },
 
     async write_file({ path, content } = {}) {
