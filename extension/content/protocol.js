@@ -1,7 +1,7 @@
 // Shared protocol for chat-page content scripts. A classic script (content scripts
 // cannot use import): it publishes globalThis.SnapgentProtocol. Tests load it the same way.
 (() => {
-  const READ_ONLY = new Set(["list_dir", "read_file"]);
+  const READ_ONLY = new Set(["list_dir", "read_file", "search_text"]);
   const needsConfirm = (command) => !READ_ONLY.has(command);
 
   function toCommand(value) {
@@ -72,6 +72,11 @@
     const result = response.result;
     if (command === "read_file" && typeof result?.content === "string") {
       return `${head} ${result.path}\n${result.content}`;
+    }
+    if (command === "search_text" && Array.isArray(result?.matches)) {
+      const lines = result.matches.map((m) => `${m.path}:${m.line}: ${m.text}`);
+      const note = `${result.matches.length} match(es) in ${result.files_scanned} file(s) scanned${result.truncated ? "; truncated, narrow the query or path" : ""}`;
+      return [`${head} "${result.query}"`, ...lines, note].join("\n");
     }
     return `${head}\n${JSON.stringify(result)}`;
   }
